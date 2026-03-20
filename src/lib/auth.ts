@@ -29,7 +29,13 @@ export const auth = betterAuth({
                                 role: "admin",
                             },
                         };
+                        
                     }
+                },
+            },
+            update:{
+                before: async (user) => {
+
                 },
             },
         },
