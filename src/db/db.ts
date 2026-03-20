@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import * as schema from '@/db/schema';
+import * as schema from './schema';
+import * as authSchema from './auth-schema';
 
 
 export const pool = new Pool({
@@ -9,4 +10,4 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-export const db = drizzle(pool, { schema, casing: 'snake_case' });
+export const db = drizzle(pool, { schema: { ...schema, ...authSchema }, casing: 'snake_case' });

@@ -1,18 +1,28 @@
 {
   "name": "hlma-hono",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --hot src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:reset": "docker compose down -v && docker compose up -d && until docker exec hlma-hono-postgres pg_isready -U postgres -d hlma >/dev/null 2>&1; do sleep 1; done && bun run db:push"
   },
   "dependencies": {
+    "@hono/zod-openapi": "^1.2.2",
     "@neondatabase/serverless": "^1.0.2",
+    "@scalar/hono-api-reference": "^0.10.4",
     "better-auth": "^1.5.5",
+    "bwip-js": "^4.8.0",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.8",
-    "pg": "^8.20.0"
+    "pdfkit": "^0.18.0",
+    "pg": "^8.20.0",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/pdfkit": "^0.17.5",
     "@types/pg": "^8.18.0",
     "drizzle-kit": "^0.31.9",
     "tsx": "^4.21.0"
