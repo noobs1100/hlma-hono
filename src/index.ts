@@ -1,9 +1,9 @@
-import "dotenv/config";
 import { cors } from "hono/cors";
 import { Hono } from "hono";
 import { Scalar } from "@scalar/hono-api-reference";
 import { auth } from "./lib/auth";
 import { openApiDocument } from "./lib/openapi.ts";
+import { configureRuntime } from "./runtime";
 import copiesRoutes from "./routes/copies.ts";
 import adminRoutes from "./routes/admin";
 import booksRoutes from "./routes/books";
@@ -14,13 +14,25 @@ import labelsRoutes from "./routes/labels";
 type AuthUser = typeof auth.$Infer.Session.user;
 type AuthSession = typeof auth.$Infer.Session.session;
 
-const app = new Hono<{ Variables: { user: AuthUser | null; session: AuthSession | null } }>();
-const frontendOrigin = process.env.CORS_ORIGIN ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+type WorkerBindings = {
+  DATABASE_URL?: string;
+  BETTER_AUTH_SECRET?: string;
+  BETTER_AUTH_URL?: string;
+  CORS_ORIGIN?: string;
+  HYPERDRIVE?: {
+    connectionString: string;
+  };
+};
+
+const app = new Hono<{
+  Bindings: WorkerBindings;
+  Variables: { user: AuthUser | null; session: AuthSession | null };
+}>();
 
 app.use(
   "/api/*",
   cors({
-    origin: frontendOrigin,
+    origin: (origin, c) => c.env.CORS_ORIGIN ?? c.env.BETTER_AUTH_URL ?? origin,
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
@@ -30,6 +42,8 @@ app.use(
 );
 
 app.use("*", async (c, next) => {
+  configureRuntime(c.env);
+
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
 
   if (!session) {
@@ -73,19 +87,6 @@ app.route("/api/labels", labelsRoutes);
 app.route("/api/admin", adminRoutes);
 
 app.get("/", (c) => c.text("Better Auth + Hono is running"));
-
-if (import.meta.main) {
-  const port = Number(process.env.PORT ?? 3000);
-  const hostname = process.env.HOST ?? "0.0.0.0";
-
-  Bun.serve({
-    fetch: app.fetch,
-    port,
-    hostname,
-  });
-
-  console.log(`Server listening on http://${hostname}:${port}`);
-}
 
 export default app;
 
