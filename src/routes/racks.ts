@@ -162,13 +162,27 @@ racksRoutes.delete("/:rackId", async (c) => {
   if (!user) return c.json({ message: "Forbidden: admin access required" }, 403);
 
   const rackId = c.req.param("rackId");
-  const deleted = await db.delete(locations).where(eq(locations.rackId, rackId)).returning();
+  try {
+    const deleted = await db.delete(locations).where(eq(locations.rackId, rackId)).returning();
 
-  if (!deleted.length) {
-    return c.json({ message: "Rack not found" }, 404);
+    if (!deleted.length) {
+      return c.json({ message: "Rack not found" }, 404);
+    }
+
+    return c.json({ message: "Rack deleted", rack: deleted[0] });
+  } catch (error) {
+    const databaseError = error as {
+      code?: string;
+      cause?: { code?: string; constraint?: string };
+    };
+    const errorCode = databaseError.code ?? databaseError.cause?.code;
+
+    if (errorCode === "23503") {
+      return c.json({ message: "Cannot delete a rack that still has copies assigned to it" }, 409);
+    }
+
+    throw error;
   }
-
-  return c.json({ message: "Rack deleted", rack: deleted[0] });
 });
 
 export default racksRoutes;

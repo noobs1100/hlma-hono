@@ -33,11 +33,6 @@ export const auth = betterAuth({
                     }
                 },
             },
-            update:{
-                before: async (user) => {
-
-                },
-            },
         },
     },
     user: {

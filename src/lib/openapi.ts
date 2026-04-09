@@ -19,6 +19,15 @@ export const openApiDocument = {
       get: {
         tags: ["Books"],
         summary: "List all books",
+        parameters: [
+          {
+            name: "query",
+            in: "query",
+            required: false,
+            schema: { type: "string" },
+            description: "Search books by title, author, genre, ISBN, or description.",
+          },
+        ],
         responses: {
           200: {
             description: "List of books",
@@ -225,6 +234,7 @@ export const openApiDocument = {
           200: { description: "Deleted rack", content: { "application/json": { schema: { $ref: "#/components/schemas/DeleteResponse" } } } },
           403: { description: "Forbidden", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
           404: { description: "Not found", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          409: { description: "Rack still has copies assigned", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
         },
       },
     },

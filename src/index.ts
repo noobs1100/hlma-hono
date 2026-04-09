@@ -18,7 +18,7 @@ const app = new Hono<{ Variables: { user: AuthUser | null; session: AuthSession 
 const frontendOrigin = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 
 app.use(
-  "/api/auth/*",
+  "/api/*",
   cors({
     origin: frontendOrigin,
     allowHeaders: ["Content-Type", "Authorization"],

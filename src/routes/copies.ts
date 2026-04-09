@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { auth } from "../lib/auth";
 import { db } from "../db/db";
-import { books, copies, locations } from "../db/schema";
+import { user } from "../db/auth-schema";
+import { books, borrows, copies, locations } from "../db/schema";
 
 type AuthUser = typeof auth.$Infer.Session.user;
 type AuthSession = typeof auth.$Infer.Session.session;
@@ -93,6 +94,93 @@ copiesRoutes.get("/:copyId", async (c) => {
   }
 
   return c.json(copy[0]);
+});
+
+copiesRoutes.get("/:copyId/details", async (c) => {
+  const copyId = c.req.param("copyId");
+
+  const copyRows = await db
+    .select({
+      copyId: copies.copyId,
+      bookId: copies.bookId,
+      rackId: copies.rackId,
+      status: copies.status,
+      borrowedByUserId: copies.borrowedByUserId,
+      borrowerId: user.id,
+      borrowerName: user.name,
+      borrowerEmail: user.email,
+      borrowerRole: user.role,
+    })
+    .from(copies)
+    .leftJoin(user, eq(copies.borrowedByUserId, user.id))
+    .where(eq(copies.copyId, copyId))
+    .limit(1);
+
+  if (!copyRows.length) {
+    return c.json({ message: "Copy not found" }, 404);
+  }
+
+  const copy = copyRows[0];
+  const book = await db.select().from(books).where(eq(books.bookId, copy.bookId)).limit(1);
+    const rack = await db
+      .select()
+      .from(locations)
+      .where(eq(locations.rackId, copy.rackId))
+      .limit(1);
+
+  const borrowRows = await db
+    .select({
+      borrowId: borrows.borrowId,
+      copyId: borrows.copyId,
+      userId: borrows.userId,
+      borrowDate: borrows.borrowDate,
+      expectedReturnDate: borrows.expectedReturnDate,
+      returnDate: borrows.returnDate,
+      borrowerId: user.id,
+      borrowerName: user.name,
+      borrowerEmail: user.email,
+      borrowerRole: user.role,
+    })
+    .from(borrows)
+    .leftJoin(user, eq(borrows.userId, user.id))
+    .where(eq(borrows.copyId, copyId))
+    .orderBy(desc(borrows.borrowDate));
+
+  return c.json({
+    copy: {
+      copyId: copy.copyId,
+      bookId: copy.bookId,
+      rackId: copy.rackId,
+      status: copy.status,
+      borrowedByUserId: copy.borrowedByUserId,
+      borrowedByUser: copy.borrowerId
+        ? {
+            id: copy.borrowerId,
+            name: copy.borrowerName,
+            email: copy.borrowerEmail,
+            role: copy.borrowerRole,
+          }
+        : null,
+        rack: rack[0] ?? null,
+    },
+    book: book[0] ?? null,
+    borrows: borrowRows.map((borrow) => ({
+      borrowId: borrow.borrowId,
+      copyId: borrow.copyId,
+      userId: borrow.userId,
+      borrowDate: borrow.borrowDate,
+      expectedReturnDate: borrow.expectedReturnDate,
+      returnDate: borrow.returnDate,
+      user: borrow.borrowerId
+        ? {
+            id: borrow.borrowerId,
+            name: borrow.borrowerName,
+            email: borrow.borrowerEmail,
+            role: borrow.borrowerRole,
+          }
+        : null,
+    })),
+  });
 });
 
 copiesRoutes.post("/", async (c) => {

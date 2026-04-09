@@ -1,9 +1,10 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, ilike, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { auth } from "../lib/auth";
 import { db } from "../db/db";
-import { books } from "../db/schema";
+import { user } from "../db/auth-schema";
+import { books, copies } from "../db/schema";
 
 type AuthUser = typeof auth.$Infer.Session.user;
 type AuthSession = typeof auth.$Infer.Session.session;
@@ -43,7 +44,24 @@ function requireAdmin(c: { get: (key: "user") => AuthUser | null }) {
 }
 
 booksRoutes.get("/", async (c) => {
-  const allBooks = await db.select().from(books).orderBy(desc(books.createdAt));
+  const searchQuery = (c.req.query("query") ?? c.req.query("q") ?? "").trim();
+
+  const allBooks = searchQuery
+    ? await db
+        .select()
+        .from(books)
+        .where(
+          or(
+            ilike(books.title, `%${searchQuery}%`),
+            ilike(books.author, `%${searchQuery}%`),
+            ilike(books.genre, `%${searchQuery}%`),
+            ilike(books.isbn, `%${searchQuery}%`),
+            ilike(books.description, `%${searchQuery}%`),
+          ),
+        )
+        .orderBy(desc(books.createdAt))
+    : await db.select().from(books).orderBy(desc(books.createdAt));
+
   return c.json(allBooks);
 });
 
@@ -56,6 +74,51 @@ booksRoutes.get("/:bookId", async (c) => {
   }
 
   return c.json(book[0]);
+});
+
+booksRoutes.get("/:bookId/details", async (c) => {
+  const bookId = c.req.param("bookId");
+  const book = await db.select().from(books).where(eq(books.bookId, bookId)).limit(1);
+
+  if (!book.length) {
+    return c.json({ message: "Book not found" }, 404);
+  }
+
+  const copyRows = await db
+    .select({
+      copyId: copies.copyId,
+      bookId: copies.bookId,
+      rackId: copies.rackId,
+      status: copies.status,
+      borrowedByUserId: copies.borrowedByUserId,
+      borrowerId: user.id,
+      borrowerName: user.name,
+      borrowerEmail: user.email,
+      borrowerRole: user.role,
+    })
+    .from(copies)
+    .leftJoin(user, eq(copies.borrowedByUserId, user.id))
+    .where(eq(copies.bookId, bookId))
+    .orderBy(desc(copies.copyId));
+
+  return c.json({
+    book: book[0],
+    copies: copyRows.map((copy) => ({
+      copyId: copy.copyId,
+      bookId: copy.bookId,
+      rackId: copy.rackId,
+      status: copy.status,
+      borrowedByUserId: copy.borrowedByUserId,
+      borrowedByUser: copy.borrowerId
+        ? {
+            id: copy.borrowerId,
+            name: copy.borrowerName,
+            email: copy.borrowerEmail,
+            role: copy.borrowerRole,
+          }
+        : null,
+    })),
+  });
 });
 
 booksRoutes.post("/", async (c) => {
@@ -77,18 +140,32 @@ booksRoutes.post("/", async (c) => {
     );
   }
 
-  const inserted = await db
-    .insert(books)
-    .values({
-      title: parsed.data.title,
-      author: parsed.data.author,
-      genre: parsed.data.genre,
-      isbn: parsed.data.isbn,
-      description: parsed.data.description,
-    })
-    .returning();
+  try {
+    const inserted = await db
+      .insert(books)
+      .values({
+        title: parsed.data.title,
+        author: parsed.data.author,
+        genre: parsed.data.genre,
+        isbn: parsed.data.isbn,
+        description: parsed.data.description,
+      })
+      .returning();
 
-  return c.json(inserted[0], 201);
+    return c.json(inserted[0], 201);
+  } catch (error) {
+    const databaseError = error as {
+      code?: string;
+      cause?: { code?: string; constraint?: string };
+    };
+    const errorCode = databaseError.code ?? databaseError.cause?.code;
+
+    if (errorCode === "23505") {
+      return c.json({ message: "A book with this ISBN already exists" }, 409);
+    }
+
+    throw error;
+  }
 });
 
 booksRoutes.patch("/:bookId", async (c) => {

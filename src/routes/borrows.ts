@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { auth } from "../lib/auth";
 import { db } from "../db/db";
-import { borrows, copies } from "../db/schema";
+import { user } from "../db/auth-schema";
+import { books, borrows, copies } from "../db/schema";
 
 type AuthUser = typeof auth.$Infer.Session.user;
 type AuthSession = typeof auth.$Infer.Session.session;
@@ -38,6 +39,52 @@ borrowsRoutes.get("/", async (c) => {
   return c.json(allBorrows);
 });
 
+borrowsRoutes.get("/me", async (c) => {
+  const currentUser = c.get("user");
+
+  if (!currentUser) {
+    return c.json({ message: "Unauthorized" }, 401);
+  }
+
+  const rows = await db
+    .select({
+      borrowId: borrows.borrowId,
+      copyId: borrows.copyId,
+      borrowDate: borrows.borrowDate,
+      expectedReturnDate: borrows.expectedReturnDate,
+      returnDate: borrows.returnDate,
+      bookId: books.bookId,
+      bookTitle: books.title,
+      bookAuthor: books.author,
+      copyStatus: copies.status,
+    })
+    .from(borrows)
+    .innerJoin(copies, eq(borrows.copyId, copies.copyId))
+    .innerJoin(books, eq(copies.bookId, books.bookId))
+    .where(eq(borrows.userId, currentUser.id))
+    .orderBy(desc(borrows.borrowDate));
+
+  return c.json(
+    rows
+      .filter((row) => !row.returnDate)
+      .map((row) => ({
+        borrowId: row.borrowId,
+        copyId: row.copyId,
+        borrowDate: row.borrowDate,
+        expectedReturnDate: row.expectedReturnDate,
+        book: {
+          bookId: row.bookId,
+          title: row.bookTitle,
+          author: row.bookAuthor,
+        },
+        copy: {
+          copyId: row.copyId,
+          status: row.copyStatus,
+        },
+      })),
+  );
+});
+
 borrowsRoutes.get("/:borrowId", async (c) => {
   const borrowId = c.req.param("borrowId");
   const borrow = await ensureBorrowExists(borrowId);
@@ -47,6 +94,50 @@ borrowsRoutes.get("/:borrowId", async (c) => {
   }
 
   return c.json(borrow);
+});
+
+borrowsRoutes.get("/:borrowId/details", async (c) => {
+  const borrowId = c.req.param("borrowId");
+  const borrowRows = await db
+    .select({
+      borrowId: borrows.borrowId,
+      copyId: borrows.copyId,
+      userId: borrows.userId,
+      borrowDate: borrows.borrowDate,
+      expectedReturnDate: borrows.expectedReturnDate,
+      returnDate: borrows.returnDate,
+      borrowerId: user.id,
+      borrowerName: user.name,
+      borrowerEmail: user.email,
+      borrowerRole: user.role,
+    })
+    .from(borrows)
+    .leftJoin(user, eq(borrows.userId, user.id))
+    .where(eq(borrows.borrowId, borrowId))
+    .limit(1);
+
+  if (!borrowRows.length) {
+    return c.json({ message: "Borrow not found" }, 404);
+  }
+
+  return c.json({
+    borrow: {
+      borrowId: borrowRows[0].borrowId,
+      copyId: borrowRows[0].copyId,
+      userId: borrowRows[0].userId,
+      borrowDate: borrowRows[0].borrowDate,
+      expectedReturnDate: borrowRows[0].expectedReturnDate,
+      returnDate: borrowRows[0].returnDate,
+      user: borrowRows[0].borrowerId
+        ? {
+            id: borrowRows[0].borrowerId,
+            name: borrowRows[0].borrowerName,
+            email: borrowRows[0].borrowerEmail,
+            role: borrowRows[0].borrowerRole,
+          }
+        : null,
+    },
+  });
 });
 
 borrowsRoutes.post("/", async (c) => {

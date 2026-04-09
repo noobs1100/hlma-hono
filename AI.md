@@ -1,375 +1,121 @@
 # AI Handoff Context
 
-This file is a compact reference for future AI coding sessions in this repo.
+This file tracks the current state of the backend so future AI sessions can move fast.
 
 ## Project Summary
 
-- **Project name:** `hlma-hono`
-- **Stack:** Hono + Better Auth + Drizzle ORM + PostgreSQL + Bun
+- **Project:** `hlma-hono`
+- **Stack:** Hono + Better Auth + Drizzle + PostgreSQL + Bun
 - **Language:** TypeScript
 - **Runtime:** Bun
-- **Database:** Local Postgres via Docker Compose
+- **Database:** Local PostgreSQL via Docker Compose
 
-## What the app does
+## Auth Flow
 
-This backend currently provides:
+- **Auth routes:** `GET`/`POST` on `/api/auth/*`
+- **Session helper:** `GET /session`
+- **Session handling:** cookie-based via Better Auth; `src/index.ts` loads the session into Hono variables
+- **First user rule:** the first created user becomes `admin` via a Better Auth database hook
+- **Role management:** admins can promote/demote users through `/api/admin/users/:userId/role`
+- **Safety rule:** the last remaining admin cannot be demoted
 
-- Better Auth login/session endpoints under `/api/auth/*`
-- A session helper route at `/session`
-- OpenAPI JSON at `/openapi.json`
-- Scalar docs UI at `/docs`
-- Book CRUD APIs under `/api/books`
-- Copy CRUD APIs under `/api/copies`
-- Borrow API endpoints under `/api/borrows`
-- Rack CRUD APIs under `/api/racks`
-- Admin user management APIs under `/api/admin/users`
-- Public PDF label generation under `/api/labels/:type`
-- Drizzle-based Postgres persistence
+## API Routes
 
-## Important Current Architecture
+### Auth + Session
 
-### `src/index.ts`
+- **`GET /api/auth/*` / `POST /api/auth/*`:** Better Auth routes for login, signup, logout, and any auth-related action needed by the Expo app.
+- **`GET /session`:** Returns the current session and is the main endpoint for restoring auth state when the app launches.
+- **Frontend use:** call `/session` on app start, store the returned user/role in state, and use it to decide which screens and actions to show.
 
-- Creates the Hono app
-- Enables CORS for `/api/auth/*`
-- Attaches session/user context middleware using Better Auth
-- Mounts Better Auth handler on `/api/auth/*`
-- Mounts the books API router at `/api/books`
-- Mounts the copies API router at `/api/copies`
-- Mounts the borrows API router at `/api/borrows`
-- Mounts the racks API router at `/api/racks`
-- Mounts the label generation router at `/api/labels`
-- Mounts the admin user-management router at `/api/admin`
-- Serves OpenAPI JSON at `/openapi.json`
-- Serves Scalar docs UI at `/docs`
-- Exposes `/session` for debugging authenticated session state
+### Books
 
-### `src/lib/auth.ts`
+- **`GET /api/books`:** Public read endpoint for listing books, showing book details, and building search or browse screens.
+- **`POST /api/books`:** Admin-only create endpoint for adding new books from the app.
+- **`PUT /api/books/:id`:** Admin-only update endpoint for editing an existing book.
+- **`DELETE /api/books/:id`:** Admin-only delete endpoint for removing a book.
+- **Frontend use:** use this for catalog screens, book forms, and admin inventory management.
 
-- Creates the Better Auth instance
-- Uses the Drizzle adapter
-- Uses `openAPI()` plugin
-- Supports custom `role` field on the auth `user`
-- Uses a `databaseHooks.user.create.before` hook to make the first created user an admin
-- `emailAndPassword` is enabled
-- `requireEmailVerification` is currently set to `false`
+### Copies
 
-### `src/db/db.ts`
+- **`GET /api/copies`:** Lists all copies for inventory screens and copy management pages.
+- **`POST /api/copies`:** Creates a copy; the client provides the copy ID and the server rejects duplicates.
+- **`PUT /api/copies/:id`:** Updates a copy record.
+- **`DELETE /api/copies/:id`:** Deletes a copy record.
+- **Frontend use:** use this for stock tracking, copy assignment, and admin maintenance flows.
 
-- Creates the Postgres pool using `DATABASE_URL`
-- Exports `db`
-- Merges both app schema and auth schema into the Drizzle schema object
+### Racks
 
-### `src/db/auth-schema.ts`
+- **`GET /api/racks`:** Lists racks for shelf/location screens.
+- **`POST /api/racks`:** Creates a rack; the client provides the rack ID and the server rejects duplicates.
+- **`PUT /api/racks/:id`:** Updates a rack.
+- **`DELETE /api/racks/:id`:** Deletes a rack.
+- **Frontend use:** use this for location management and admin setup screens.
 
-Better Auth tables live here:
+### Borrows
 
-- `user`
-- `session`
-- `account`
-- `verification`
+- **`GET /api/borrows`:** Lists borrow records for active loans, history, and borrower tracking.
+- **`POST /api/borrows`:** Creates a borrow record when a user checks out a copy.
+- **`PUT /api/borrows/:id`:** Updates a borrow record if the workflow requires it.
+- **`DELETE /api/borrows/:id`:** Deletes a borrow record.
+- **Return flow:** the borrows API also supports returning a borrowed item, so the app can mark a copy as returned from a dedicated return action.
+- **Frontend use:** use this for borrow history screens, checkout flows, and return screens.
+- **Access rule:** create and return are allowed for authenticated `user` and `admin` roles.
 
-Custom field on auth user:
+### Admin Users
 
-- `role` with default value `"user"`
+- **`GET /api/admin/users`:** Lists users for admin management screens.
+- **`PATCH /api/admin/users/:userId/role`:** Promotes or demotes a user’s role.
+- **Safety rule:** the last remaining admin cannot be demoted.
+- **Frontend use:** use this for admin-only user management pages.
 
-### First Admin Rule
+### Labels
 
-- The first created user is assigned `role = "admin"` in a Better Auth database hook
-- Later users default to `role = "user"`
-- Admins can promote or demote users through admin routes
-- The last remaining admin cannot be demoted to `user`
+- **`GET /api/labels/:type`:** Generates a PDF label file for the requested type.
+- **Supported types:** `r` and `b`.
+- **Label format:** IDs use base62 with `r:` and `b:` prefixes.
+- **Label PDF detail:** each Data Matrix code includes `Nidhanam` text above it.
+- **Frontend use:** use this for printing rack labels and book labels from the app.
 
-### `src/db/schema.ts`
+### OpenAPI + Docs
 
-Library/business tables live here:
+- **`GET /openapi.json`:** Machine-readable API schema for generating typed clients or checking request/response shapes.
+- **`GET /docs`:** Human-readable documentation for the backend API.
+- **Frontend use:** useful when building a shared API client for the Expo app.
 
-- `books`
-- `copies`
-- `borrows`
-- `locations`
-- `copyStatusEnum`
+## Business Rules
 
-Relationships include:
+- **Books:** public read; admin-only write
+- **Copies and racks:** client supplies custom IDs; server rejects duplicate IDs
+- **Borrows:** create and return are allowed for authenticated `user` and `admin` roles
+- **Labels:** IDs are base62 with `r:` and `b:` prefixes
+- **Label PDFs:** each Data Matrix code has `Nidhanam` text above it
 
-- `books -> copies`
-- `locations -> copies`
-- `copies -> borrows`
-- `borrows -> user`
+## Expo Integration Notes
 
-## Book API Behavior
+- **Session first:** call `GET /session` when the app starts and keep the user role in app state.
+- **Cookie auth:** the backend uses cookie-based auth, so Expo requests must preserve credentials when supported by the runtime.
+- **Route gating:** hide admin screens unless the session role is `admin`.
+- **Catalog flow:** use `GET /api/books` for browse/search, then call the protected book and inventory endpoints only when needed.
+- **Operational flow:** use borrows endpoints for checkout and returns, and labels endpoints for printing PDFs.
+- **API source of truth:** use `GET /openapi.json` if you want to generate or verify a typed client in the frontend repo.
 
-### Public
+## Database Notes
 
-- `GET /api/books` → list all books
-- `GET /api/books/:bookId` → fetch one book
-
-### Admin only
-
-- `POST /api/books` → add a book
-- `PATCH /api/books/:bookId` → update a book
-- `DELETE /api/books/:bookId` → delete a book
-
-## Label PDF Endpoint
-
-### Public
-
-- `GET /api/labels/r` → generate a single A4 PDF page for racks
-- `GET /api/labels/b` → generate a single A4 PDF page for books
-
-### Output format
-
-- Returns `application/pdf`
-- Generates `96` labels per page in an `8 x 12` grid
-- Uses Data Matrix symbols
-- Prints the encoded text below each symbol
-
-### Encoded value format
-
-- Rack labels use: `r:<6-char base62-id>`
-- Book labels use: `b:<6-char base62-id>`
-- Example: `r:AAAAAA`, `b:Qm9vaw`
-
-Authorization rule:
-
-- Admin access is checked with `user.role === "admin"`
-- Non-admin write attempts return `403 Forbidden: admin access required`
-
-### Validation
-
-`POST /api/books` uses Zod validation.
-Required fields:
-
-- `title`
-- `author`
-- `genre`
-- `isbn`
-- `description`
-
-The handler trims values and returns a `400` response with validation issues if input is invalid.
-
-## Copy API Behavior
-
-### Public
-
-- `GET /api/copies` → list all copies
-- `GET /api/copies/:copyId` → fetch one copy
-
-### Admin only
-
-- `POST /api/copies` → add a copy
-- `PATCH /api/copies/:copyId` → update a copy
-- `DELETE /api/copies/:copyId` → delete a copy
-
-### Add copy rules
-
-- `copyId` must be provided by the client
-- `bookId` must be a valid existing book UUID
-- `rackId` must be a valid existing rack ID
-- new copies default to `available`
-- if `status` is `borrowed`, `borrowedByUserId` is required
-- if `status` is `available`, `borrowedByUserId` is cleared to `null`
-
-### Copy ID generation
-
-- `copyId` is generated by the client
-- uses a 6-character base62 ID
-- server validates duplicates before insert
-- create accepts a client-supplied `copyId`; the server rejects duplicate IDs
-
-## Borrow API Behavior
-
-### Public
-
-- `GET /api/borrows` → list all borrows
-- `GET /api/borrows/:borrowId` → fetch one borrow
-
-### User or admin role only
-
-- `POST /api/borrows` → create a borrow
-- `POST /api/borrows/:borrowId/return` → return a borrow
-
-### Create borrow rules
-
-- `copyId` is required
-- `expectedReturnDate` is required
-- authenticated user must have role `user` or `admin`
-- copy must exist
-- copy must be `available`
-- borrow is created in a transaction
-- copy status becomes `borrowed`
-- `borrowedByUserId` is set to the authenticated user
-
-### Return borrow rules
-
-- authenticated user must have role `user` or `admin`
-- borrow must exist
-- user can only return their own borrow
-- return is saved with `returnDate`
-- copy status becomes `available`
-- `borrowedByUserId` is cleared
-
-## Rack API Behavior
-
-### Admin only
-
-- `GET /api/racks` → list all racks
-- `GET /api/racks/:rackId` → fetch one rack
-- `POST /api/racks` → add a rack
-- `PATCH /api/racks/:rackId` → update a rack
-- `DELETE /api/racks/:rackId` → delete a rack
-
-### Add rack rules
-
-- `rackId` must be provided by the client
-- `room` is required
-- `cupboard` is required
-- `rack` is required
-- `description` is optional
-- server validates duplicates before insert
-- create accepts a client-supplied `rackId`; the server rejects duplicate IDs
-
-## Admin User Management
-
-### Admin only
-
-- `GET /api/admin/users` → list users with `id`, `name`, `email`, `role`, timestamps
-- `PATCH /api/admin/users/:userId/role` → update a user's role to `admin` or `user`
-
-### Safety rule
-
-- The last remaining admin cannot be demoted to `user`
-
-## Database Design Notes
-
-### `books`
-
-- `bookId` is a UUID primary key with `defaultRandom()`
-- `isbn` is unique
-- `createdAt` and `updatedAt` are timezone timestamps
-
-### `copies`
-
-- `copyId` is a text primary key for Crockford base32 style IDs
-- `bookId` references `books.bookId` with `onDelete: "cascade"`
-- `rackId` references `locations.rackId` with `onDelete: "restrict"`
-- `status` uses `copy_status` enum: `borrowed | available`
-
-### `borrows`
-
-- `borrowId` is a UUID primary key with `defaultRandom()`
-- `copyId` references `copies.copyId` with `onDelete: "cascade"`
-- `userId` references auth `user.id` with `onDelete: "cascade"`
-- `borrowDate`, `expectedReturnDate`, `returnDate` are timestamps
-
-### `locations`
-
-- `rackId` is a text primary key for Crockford base32 style IDs
-- `description` is nullable
-- `room`, `cupboard`, `rack` are required strings
-
-## Environment Variables
-
-Current important env values:
-
-- `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hlma`
-- `BETTER_AUTH_URL=http://localhost:3000`
-- `BETTER_AUTH_SECRET=...`
-
-Never leave example text inside env values.
-
-## Docker / Local Postgres
-
-There is a `docker-compose.yml` in the repo root.
-
-Use:
-
-```bash
-docker compose up -d
-```
-
-## NPM/Bun Scripts
-
-From `package.json`:
-
-- `bun run dev` → start the Hono app with hot reload
-- `bun run db:generate` → generate Drizzle migrations
-- `bun run db:migrate` → run Drizzle migrations
-- `bun run db:push` → push schema changes directly
-
-## Dependency Notes
-
-Current notable dependencies:
-
-- `better-auth`
-- `drizzle-orm`
-- `drizzle-kit`
-- `hono`
-- `pg`
-- `zod`
-- `dotenv`
-
-## Coding Conventions in This Repo
-
-- Prefer small, route-based files under `src/routes`
-- Keep database schema files under `src/db`
-- Use relative imports inside backend files unless project aliases are confirmed stable
-- Keep auth logic centralized in `src/lib/auth.ts`
-- Keep read endpoints public unless explicitly protected
-- Use admin checks only for write actions when required
-
-## Files to Know First
-
-1. `src/index.ts`
-2. `src/lib/auth.ts`
-3. `src/routes/books.ts`
-4. `src/db/db.ts`
-5. `src/db/schema.ts`
-6. `src/db/auth-schema.ts`
-7. `drizzle.config.ts`
-8. `package.json`
+- **App schema:** `src/db/schema.ts`
+- **Auth schema:** `src/db/auth-schema.ts`
+- **Database setup:** `src/db/db.ts` merges app and auth schemas into the Drizzle client
+- **Migrations:** stored under `src/db/migrations/`
+- **Local Postgres:** started through `docker-compose.yml`
 
 ## Useful Commands
 
-```bash
-bun install
-bun run dev
-bun run db:generate
-bun run db:migrate
-bun run db:push
-docker compose up -d
-```
+- `bun run dev`
+- `bun run db:generate`
+- `bun run db:migrate`
+- `bun run db:push`
+- `bun run db:reset`
 
-## API Docs
+## Notes
 
-- `GET /openapi.json` → OpenAPI 3.0 document for the current API
-- `GET /docs` → Scalar docs UI backed by `/openapi.json`
+- **OpenAPI docs:** generated from the current server and surfaced at `/openapi.json` and `/docs`
 
-## Notes for Future AI Work
-
-Before making changes:
-
-- check whether the change belongs in auth, DB schema, or route layer
-- keep public GET routes public
-- keep book write routes admin-only
-- keep copy write routes admin-only
-- keep rack routes admin-only
-- verify types after edits
-- avoid mixing app schema and auth schema in a way that breaks the Drizzle adapter
-
-If you need to extend the backend, the safest patterns are:
-
-- add new route modules in `src/routes/`
-- add DB tables in `src/db/schema.ts`
-- add auth-related schema in `src/db/auth-schema.ts`
-- update `src/db/db.ts` only when the merged schema needs to stay in sync
-
-## Current Status Snapshot
-
-- Better Auth is wired into Hono
-- Admin-only book writes are implemented
-- Book CRUD route file exists
-- Zod validates book creation requests
-- Borrow endpoints exist and are user-role only for create/return
-- Local Postgres compose setup exists
-- Drizzle scripts are added to `package.json`
