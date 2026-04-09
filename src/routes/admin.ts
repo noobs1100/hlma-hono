@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { auth } from "../lib/auth";
@@ -74,9 +74,24 @@ adminRoutes.patch("/users/:userId/role", async (c) => {
 
   const role = parsed.data.role;
 
+  const firstAdmin = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.role, "admin"))
+    .orderBy(asc(user.createdAt))
+    .limit(1);
+
+  if (firstAdmin[0]?.id === targetUser[0].id && role === "user") {
+    return c.json({ message: "You cannot demote the first admin" }, 400);
+  }
+
   if (targetUser[0].id === currentUser.id && role === "user") {
+    return c.json({ message: "You cannot demote yourself" }, 400);
+  }
+
+  if (targetUser[0].id !== currentUser.id && role === "user") {
     const adminCount = await db
-      .select({ count: user.id })
+      .select({ id: user.id })
       .from(user)
       .where(eq(user.role, "admin"));
 
