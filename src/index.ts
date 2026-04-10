@@ -74,6 +74,18 @@ app.route("/api/admin", adminRoutes);
 
 app.get("/", (c) => c.text("Better Auth + Hono is running"));
 
-export default app;
+const port = Number(process.env.PORT ?? 3000);
+const hostname = process.env.HOST ?? "0.0.0.0";
+
+const server = Bun.serve({
+  fetch: app.fetch,
+  port,
+  hostname,
+});
+
+console.info(`Server listening on http://${server.hostname}:${server.port}`);
+
+export { app };
+
 
 
