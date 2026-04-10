@@ -25,7 +25,7 @@ docker run --rm -p 3000:3000 \
 	-e HOST=0.0.0.0 \
 	-e PORT=3000 \
 	-e BETTER_AUTH_URL='http://192.168.168.72:3000' \
-	-e DATABASE_URL='postgresql://neondb_owner:npg_9ltPQgk1brhs@ep-blue-mountain-a15juag7.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' \
+	-e DATABASE_URL='postgresql://...' \
 	-e BETTER_AUTH_SECRET='4b2e9d6c1c7b4f39b4a4d7b7f4b8c9d2' \
 	hlma-hono:latest
 ```
