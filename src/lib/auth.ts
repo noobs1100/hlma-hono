@@ -55,5 +55,8 @@ export const auth = betterAuth({
         requireEmailVerification: false,
     },
     trustedOrigins: [expoSchemeOrigin, ...webOrigins],
+    advanced: {
+        disableOriginCheck: process.env.BETTER_AUTH_DISABLE_ORIGIN_CHECK === "true",
+    },
     plugins: [openAPI()],
 });

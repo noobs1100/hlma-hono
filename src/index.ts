@@ -43,7 +43,12 @@ app.use(
 );
 
 app.use("*", async (c, next) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (c.req.path.startsWith("/api/auth/")) {
+    await next();
+    return;
+  }
+
+  const session = await auth.api.getSession({ headers: withExpoOrigin(c.req.raw).headers });
 
   if (!session) {
     c.set("user", null);
