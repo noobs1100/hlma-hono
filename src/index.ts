@@ -15,7 +15,20 @@ type AuthUser = typeof auth.$Infer.Session.user;
 type AuthSession = typeof auth.$Infer.Session.session;
 
 const app = new Hono<{ Variables: { user: AuthUser | null; session: AuthSession | null } }>();
-const frontendOrigin = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+const frontendOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
+
+function withExpoOrigin(request: Request) {
+  const expoOrigin = request.headers.get("expo-origin");
+
+  if (!expoOrigin) {
+    return request;
+  }
+
+  const headers = new Headers(request.headers);
+  headers.set("origin", expoOrigin);
+
+  return new Request(request, { headers });
+}
 
 app.use(
   "/api/*",
@@ -44,7 +57,7 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(withExpoOrigin(c.req.raw)));
 
 app.get("/session", (c) => {
   const session = c.get("session");

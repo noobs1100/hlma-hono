@@ -7,6 +7,12 @@ import { db } from "../db/db";
 
 export type Role = "admin" | "user";
 
+const expoSchemeOrigin = "hlmaexpo://";
+const webOrigins = [
+    process.env.CORS_ORIGIN ?? "http://localhost:3000",
+    "http://127.0.0.1:3000",
+];
+
 export const auth = betterAuth({
     secret: process.env.BETTER_AUTH_SECRET,
     database: drizzleAdapter(db, {
@@ -48,5 +54,6 @@ export const auth = betterAuth({
         enabled: true,
         requireEmailVerification: false,
     },
+    trustedOrigins: [expoSchemeOrigin, ...webOrigins],
     plugins: [openAPI()],
 });
