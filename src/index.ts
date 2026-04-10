@@ -15,7 +15,7 @@ type AuthUser = typeof auth.$Infer.Session.user;
 type AuthSession = typeof auth.$Infer.Session.session;
 
 const app = new Hono<{ Variables: { user: AuthUser | null; session: AuthSession | null } }>();
-const frontendOrigin = process.env.CORS_ORIGIN ?? process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+const frontendOrigin = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 
 app.use(
   "/api/*",
@@ -73,19 +73,6 @@ app.route("/api/labels", labelsRoutes);
 app.route("/api/admin", adminRoutes);
 
 app.get("/", (c) => c.text("Better Auth + Hono is running"));
-
-if (import.meta.main) {
-  const port = Number(process.env.PORT ?? 3000);
-  const hostname = process.env.HOST ?? "0.0.0.0";
-
-  Bun.serve({
-    fetch: app.fetch,
-    port,
-    hostname,
-  });
-
-  console.log(`Server listening on http://${hostname}:${port}`);
-}
 
 export default app;
 
