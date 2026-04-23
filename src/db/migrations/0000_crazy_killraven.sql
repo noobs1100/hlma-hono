@@ -4,8 +4,8 @@ CREATE TABLE "books" (
 	"title" text NOT NULL,
 	"author" text NOT NULL,
 	"genre" text NOT NULL,
-	"isbn" text NOT NULL,
-	"description" text NOT NULL,
+	"isbn" text,
+	"description" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "books_isbn_unique" UNIQUE("isbn")

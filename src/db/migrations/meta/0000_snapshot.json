@@ -1,5 +1,5 @@
 {
-  "id": "e90da095-7635-41cb-ab22-7b09cc883548",
+  "id": "1dc19f9a-58df-4845-ad92-4a73e7fc8bc8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -37,13 +37,13 @@
           "name": "isbn",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "description": {
           "name": "description",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

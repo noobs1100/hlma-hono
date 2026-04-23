@@ -6,7 +6,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:reset": "docker compose down -v && docker compose up -d && until docker exec hlma-hono-postgres pg_isready -U postgres -d hlma >/dev/null 2>&1; do sleep 1; done && bun run db:push"
+    "db:reset": "sudo docker compose down -v && sudo docker compose up -d && until sudo docker exec hlma-hono-postgres pg_isready -U postgres -d hlma >/dev/null 2>&1; do sleep 1; done && bun run db:push"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.2.2",

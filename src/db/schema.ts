@@ -17,8 +17,8 @@ export const books = pgTable("books", {
   title: text("title").notNull(),
   author: text("author").notNull(),
   genre: text("genre").notNull(),
-  isbn: text("isbn").notNull().unique(),
-  description: text("description").notNull(),
+  isbn: text("isbn").unique(),
+  description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
