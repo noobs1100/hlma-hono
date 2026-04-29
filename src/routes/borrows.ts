@@ -211,7 +211,7 @@ borrowsRoutes.post("/:borrowId/return", async (c) => {
 
     const activeBorrow = borrow[0];
 
-    if (activeBorrow.userId !== user.id) {
+    if (activeBorrow.userId !== user.id && user.role !== "admin") {
       return { status: 403 as const, body: { message: "Forbidden: you can only return your own borrow" } };
     }
 

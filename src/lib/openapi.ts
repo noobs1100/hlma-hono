@@ -183,7 +183,7 @@ export const openApiDocument = {
         parameters: [{ name: "borrowId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
         responses: {
           200: { description: "Returned borrow", content: { "application/json": { schema: { $ref: "#/components/schemas/Borrow" } } } },
-          403: { description: "Forbidden", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
+          403: { description: "Forbidden unless borrower or admin", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
           404: { description: "Not found", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
           409: { description: "Already returned", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } },
         },
